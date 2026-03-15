@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/mood_entry.dart';
+import '../../data/models/mood_entry.dart';
 
 class MoodCard extends StatelessWidget {
   final MoodEntry entry;

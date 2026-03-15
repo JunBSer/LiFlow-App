@@ -25,6 +25,7 @@ class AppLoc extends InheritedWidget {
       'edit': 'Edit',
       'no_data': 'No entries yet. Add your mood!',
       'loading': 'Loading...',
+      'unknown_author': 'Unknown author', 
     },
     'ru': {
       'app_name': 'LiFlow',
@@ -39,6 +40,7 @@ class AppLoc extends InheritedWidget {
       'edit': 'Изменить',
       'no_data': 'Пока нет записей. Добавьте настроение!',
       'loading': 'Загрузка...',
+      'unknown_author': 'Неизвестный автор', 
     }
   };
 }

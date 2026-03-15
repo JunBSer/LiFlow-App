@@ -1,6 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/mood_entry.dart';
+import '../../models/mood_entry.dart';
 
 class DBHelper {
   static final DBHelper _instance = DBHelper._internal();

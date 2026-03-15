@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/mood_entry.dart';
-import '../providers/mood_provider.dart';
-import '../services/localization.dart';
+import '../../data/models/mood_entry.dart';
+import '../../viewmodels/mood_view_model.dart';
+import '../../core/localization/localization.dart';
 
-class AddEntryPage extends StatefulWidget {
+class AddEntryScreen extends StatefulWidget {
   final MoodEntry? entryToEdit; 
-  const AddEntryPage({super.key, this.entryToEdit});
+  const AddEntryScreen({super.key, this.entryToEdit});
 
   @override
-  State<AddEntryPage> createState() => _AddEntryPageState();
+  State<AddEntryScreen> createState() => _AddEntryScreenState();
 }
 
-class _AddEntryPageState extends State<AddEntryPage> {
+class _AddEntryScreenState extends State<AddEntryScreen> {
 
   final List<String> _emojis = [
     '🤩', '😊', '🥳', '🥰', '😎', 
@@ -84,7 +84,6 @@ class _AddEntryPageState extends State<AddEntryPage> {
                 maxLines: 5,   
                 decoration: InputDecoration(
                   labelText: context.loc('reason'),
-                  hintText: 'Что произошло?',
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                   border: OutlineInputBorder(
@@ -123,9 +122,9 @@ class _AddEntryPageState extends State<AddEntryPage> {
     );
 
     if (widget.entryToEdit == null) {
-      context.read<MoodProvider>().addEntry(entry);
+      context.read<MoodViewModel>().addMood(entry);
     } else {
-      context.read<MoodProvider>().updateEntry(entry);
+      context.read<MoodViewModel>().updateMood(entry);
     }
     Navigator.pop(context);
   }

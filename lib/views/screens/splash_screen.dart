@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'home_page.dart';
-import '../services/localization.dart';
+import 'home_screen.dart';
+import '../../core/localization/localization.dart';
 
-class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scale;
   bool _isVisible = false;
@@ -45,7 +45,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, _, _) => const HomePage(),
+            pageBuilder: (_, _, _) => const HomeScreen(),
             transitionsBuilder: (_, a, _, c) => FadeTransition(opacity: a, child: c),
             transitionDuration: const Duration(milliseconds: 800),
           ),

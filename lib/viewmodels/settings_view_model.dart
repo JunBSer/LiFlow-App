@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../services/prefs_helper.dart';
+import '../core/preferences/prefs_helper.dart';
 
-class SettingsProvider with ChangeNotifier {
+class SettingsViewModel with ChangeNotifier {
   bool _isDarkMode = false;
   String _langCode = 'ru';
 
   bool get isDarkMode => _isDarkMode;
   String get langCode => _langCode;
 
-  SettingsProvider() {
+  SettingsViewModel() {
     _loadSettings();
   }
 

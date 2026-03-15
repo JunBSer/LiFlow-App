@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../providers/mood_provider.dart';
-import 'add_entry_page.dart';
+import '../../viewmodels/mood_view_model.dart';
+import 'add_entry_screen.dart';
 
-class DetailPage extends StatelessWidget {
+class DetailScreen extends StatelessWidget {
   final int entryId;
-  const DetailPage({super.key, required this.entryId});
+  const DetailScreen({super.key, required this.entryId});
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<MoodProvider>();
-    final entryIndex = provider.entries.indexWhere((e) => e.id == entryId);
-    if (entryIndex == -1) return const Scaffold();
-    final entry = provider.entries[entryIndex];
+    final provider = context.watch<MoodViewModel>();
+    final entry = provider.getEntryById(entryId);
+
+    if (entry == null) {
+     return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       appBar: AppBar(
         actions: [
           IconButton(icon: const Icon(Icons.edit), onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => AddEntryPage(entryToEdit: entry)));
+            Navigator.push(context, MaterialPageRoute(builder: (_) => AddEntryScreen(entryToEdit: entry)));
           }),
           IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () {
-            context.read<MoodProvider>().deleteEntry(entry.id!);
+             context.read<MoodViewModel>().deleteMood(entry.id!);
             Navigator.pop(context);
           }),
         ],

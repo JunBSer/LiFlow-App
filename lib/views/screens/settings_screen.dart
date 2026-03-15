@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/settings_provider.dart';
-import '../services/localization.dart';
+import '../../viewmodels/settings_view_model.dart';
+import '../../core/localization/localization.dart';
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsProvider>();
+    final settings = context.watch<SettingsViewModel>();
 
     return Scaffold(
       appBar: AppBar(
