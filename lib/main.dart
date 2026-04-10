@@ -5,11 +5,15 @@ import 'viewmodels/settings_view_model.dart';
 import 'views/screens/splash_screen.dart';
 import 'core/localization/localization.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'core/services/firebase_service.dart';
+import 'core/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await dotenv.load(fileName: ".env");
+  await FirebaseService.initialize();
+  await NotificationService.instance.initialize();
 
   runApp(
     MultiProvider(

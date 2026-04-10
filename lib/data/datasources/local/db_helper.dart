@@ -19,16 +19,30 @@ class DBHelper {
     String path = join(await getDatabasesPath(), 'mood_tracker.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE moods (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            remoteId TEXT,
             emoji TEXT NOT NULL,
             reason TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'General',
+            keywords TEXT,
+            imageUrl TEXT,
             dateTime TEXT NOT NULL
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute("ALTER TABLE moods ADD COLUMN remoteId TEXT");
+          await db.execute(
+            "ALTER TABLE moods ADD COLUMN category TEXT NOT NULL DEFAULT 'General'",
+          );
+          await db.execute("ALTER TABLE moods ADD COLUMN keywords TEXT");
+          await db.execute("ALTER TABLE moods ADD COLUMN imageUrl TEXT");
+        }
       },
     );
   }
@@ -40,13 +54,43 @@ class DBHelper {
 
   Future<List<MoodEntry>> getEntries() async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('moods', orderBy: 'dateTime DESC');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'moods',
+      orderBy: 'dateTime DESC',
+    );
     return maps.map((e) => MoodEntry.fromMap(e)).toList();
+  }
+
+  Future<MoodEntry?> getEntryById(int id) async {
+    final db = await database;
+    final maps = await db.query(
+      'moods',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return MoodEntry.fromMap(maps.first);
   }
 
   Future<int> updateEntry(MoodEntry entry) async {
     final db = await database;
-    return await db.update('moods', entry.toMap(), where: 'id = ?', whereArgs: [entry.id]);
+    return await db.update(
+      'moods',
+      entry.toMap(),
+      where: 'id = ?',
+      whereArgs: [entry.id],
+    );
+  }
+
+  Future<int> updateRemoteId(int id, String remoteId) async {
+    final db = await database;
+    return await db.update(
+      'moods',
+      {'remoteId': remoteId},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<int> deleteEntry(int id) async {

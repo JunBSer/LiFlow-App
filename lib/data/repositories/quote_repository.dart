@@ -8,7 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quote_entry.dart';
 
 class QuoteRepository {
-  final String _baseUrl = dotenv.env['QUOTE_API_URL'] ?? 'https://zenquotes.io/api/random';
+  final String _baseUrl =
+      dotenv.env['QUOTE_API_URL'] ??
+      dotenv.env['BASE_QUOTE_URL'] ??
+      'https://zenquotes.io/api/random';
 
   Future<Quote?> getQuote({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();

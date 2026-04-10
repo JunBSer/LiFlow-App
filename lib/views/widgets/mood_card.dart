@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
 import '../../data/models/mood_entry.dart';
 
 class MoodCard extends StatelessWidget {
@@ -30,7 +31,9 @@ class MoodCard extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4),
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: 0.4),
             shape: BoxShape.circle,
           ),
           child: Text(entry.emoji, style: const TextStyle(fontSize: 28)),
@@ -41,9 +44,25 @@ class MoodCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        subtitle: Text(
-          DateFormat('dd.MM.yyyy, HH:mm').format(entry.dateTime),
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              DateFormat('dd.MM.yyyy, HH:mm').format(entry.dateTime),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              entry.category,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
         trailing: const Icon(Icons.chevron_right),
       ),
