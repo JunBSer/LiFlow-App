@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/localization/localization.dart';
 import '../../viewmodels/mood_view_model.dart';
 import 'add_entry_screen.dart';
 
 class DetailScreen extends StatelessWidget {
   final int entryId;
+
   const DetailScreen({super.key, required this.entryId});
 
   @override
@@ -14,19 +19,69 @@ class DetailScreen extends StatelessWidget {
     final entry = provider.getEntryById(entryId);
 
     if (entry == null) {
-     return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Text(
+            context.loc('no_data'),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(
       appBar: AppBar(
         actions: [
-          IconButton(icon: const Icon(Icons.edit), onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => AddEntryScreen(entryToEdit: entry)));
-          }),
-          IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () {
-             context.read<MoodViewModel>().deleteMood(entry.id!);
-            Navigator.pop(context);
-          }),
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEntryScreen(entryToEdit: entry),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () async {
+              final moodViewModel = context.read<MoodViewModel>();
+              final navigator = Navigator.of(context);
+              final deleteTitle = context.loc('delete_entry_title');
+              final deleteMessage = context.loc('delete_entry_message');
+              final cancelText = context.loc('cancel');
+              final deleteText = context.loc('delete');
+
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(deleteTitle),
+                  content: Text(deleteMessage),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(cancelText),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(deleteText),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirmed != true) return;
+
+              await moodViewModel.deleteMood(entry.id!);
+              if (context.mounted) {
+                navigator.pop();
+              }
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -38,7 +93,9 @@ class DetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(30),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer.withValues(alpha: 0.3),
                 ),
                 child: Text(entry.emoji, style: const TextStyle(fontSize: 80)),
               ),
@@ -46,14 +103,61 @@ class DetailScreen extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               DateFormat('dd MMMM yyyy, HH:mm').format(entry.dateTime),
-              style: TextStyle(fontSize: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                entry.category,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (entry.keywords.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: entry.keywords
+                    .map(
+                      (k) => Chip(
+                        label: Text(k),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+            if (entry.imageUrl != null && entry.imageUrl!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  height: 220,
+                  width: double.infinity,
+                  child: entry.imageUrl!.startsWith('http')
+                      ? Image.network(entry.imageUrl!, fit: BoxFit.cover)
+                      : Image.file(File(entry.imageUrl!), fit: BoxFit.cover),
+                ),
+              ),
+            ],
             const SizedBox(height: 30),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(

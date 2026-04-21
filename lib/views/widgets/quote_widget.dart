@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:liflow/core/localization/localization.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/architecture/view_state.dart';
-import '../../viewmodels/mood_view_model.dart';
+import '../../core/localization/localization.dart';
 import '../../data/models/quote_entry.dart';
+import '../../viewmodels/quote_view_model.dart';
 
 class QuoteWidget extends StatelessWidget {
   const QuoteWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<MoodViewModel>().quoteState;
+    final state = context.watch<QuoteViewModel>().quoteState;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -30,12 +31,15 @@ class QuoteWidget extends StatelessWidget {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: Theme.of(
+          context,
+        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Center(
         child: SizedBox(
-          width: 24, height: 24,
+          width: 24,
+          height: 24,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
@@ -58,7 +62,7 @@ class QuoteWidget extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Stack( 
+      child: Stack(
         children: [
           Column(
             children: [
@@ -72,32 +76,33 @@ class QuoteWidget extends StatelessWidget {
                 quote.text,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 16, fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w500, height: 1.4,
+                  fontSize: 16,
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
                 ),
               ),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
-                  "— ${quote.author ?? context.loc("unknown_author")}",
+                  '\u2014 ${quote.author ?? context.loc('unknown_author')}',
                   style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
             ],
           ),
-          
-          
           Positioned(
             top: -10,
             right: -10,
             child: IconButton(
               icon: Icon(Icons.refresh_rounded, color: colorScheme.primary),
               onPressed: () {
-                context.read<MoodViewModel>().refreshQuoteManually();
+                context.read<QuoteViewModel>().refreshQuoteManually();
               },
             ),
           ),
