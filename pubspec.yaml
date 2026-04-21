@@ -40,10 +40,13 @@ dependencies:
   connectivity_plus: ^7.1.0
   image_picker: ^1.2.1
   flutter_local_notifications: ^21.0.0
+  flutter_timezone: ^4.1.1
   timezone: ^0.11.0
   firebase_core: ^4.6.0
   cloud_firestore: ^6.2.0
   firebase_storage: ^13.2.0
+  firebase_database: ^12.3.0
+  string_similarity: ^2.2.0
 
 dev_dependencies:
   flutter_test:

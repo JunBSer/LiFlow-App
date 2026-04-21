@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../datasources/local/db_helper.dart';
 import '../datasources/remote/firebase_mood_remote_datasource.dart';
 import '../models/mood_entry.dart';
@@ -14,43 +16,73 @@ class MoodRepository {
     final localId = await _dbHelper.insertEntry(entry);
     final localEntry = entry.copyWith(id: localId);
 
-    try {
-      final remoteId = await _remote.saveMood(localEntry);
-      if (remoteId != null) {
-        await _dbHelper.updateRemoteId(localId, remoteId);
-      }
-    } catch (_) {
-      // Keep local-first flow even if remote sync fails.
-    }
+    unawaited(_syncCreateToRemote(localEntry, localId));
   }
 
   Future<void> updateMood(MoodEntry entry) async {
     await _dbHelper.updateEntry(entry);
-    try {
-      if (entry.remoteId == null || entry.remoteId!.isEmpty) {
-        final remoteId = await _remote.saveMood(entry);
-        if (remoteId != null && entry.id != null) {
-          await _dbHelper.updateRemoteId(entry.id!, remoteId);
-        }
-      } else {
-        await _remote.updateMood(entry);
-      }
-    } catch (_) {
-      // Ignore remote errors to keep editing available offline.
-    }
+    unawaited(_syncUpdateToRemote(entry));
   }
 
   Future<void> deleteMood(int id) async {
     final localEntry = await _dbHelper.getEntryById(id);
     final remoteId = localEntry?.remoteId;
+    final imageUrl = localEntry?.imageUrl;
 
-    await _dbHelper.deleteEntry(id);
+    final deletedRows = await _dbHelper.deleteEntry(id);
+    if (deletedRows == 0) {
+      return;
+    }
     if (remoteId == null) return;
 
+    unawaited(_syncDeleteFromRemote(remoteId, imageUrl: imageUrl));
+  }
+
+  Future<void> _syncCreateToRemote(MoodEntry localEntry, int localId) async {
     try {
-      await _remote.deleteMood(remoteId);
+      final result = await _remote.saveMood(localEntry);
+      if (result != null) {
+        await _dbHelper.updateSyncedFields(
+          id: localId,
+          remoteId: result.remoteId,
+          imageUrl: result.imageUrl,
+        );
+      }
     } catch (_) {
-      // Local delete should succeed regardless of remote state.
+    }
+  }
+
+  Future<void> _syncUpdateToRemote(MoodEntry entry) async {
+    try {
+      if (entry.remoteId == null || entry.remoteId!.isEmpty) {
+        final result = await _remote.saveMood(entry);
+        if (result != null && entry.id != null) {
+          await _dbHelper.updateSyncedFields(
+            id: entry.id!,
+            remoteId: result.remoteId,
+            imageUrl: result.imageUrl,
+          );
+        }
+      } else {
+        final syncedImageUrl = await _remote.updateMood(entry);
+        if (syncedImageUrl != null && entry.id != null) {
+          await _dbHelper.updateSyncedFields(
+            id: entry.id!,
+            imageUrl: syncedImageUrl,
+          );
+        }
+      }
+    } catch (_) {
+    }
+  }
+
+  Future<void> _syncDeleteFromRemote(
+    String remoteId, {
+    String? imageUrl,
+  }) async {
+    try {
+      await _remote.deleteMood(remoteId, imageUrl: imageUrl);
+    } catch (_) {
     }
   }
 }

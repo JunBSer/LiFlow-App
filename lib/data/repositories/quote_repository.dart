@@ -1,5 +1,3 @@
-// lib/data/repositories/quote_repository.dart
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,17 +6,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/quote_entry.dart';
 
 class QuoteRepository {
-  final String _baseUrl =
-      dotenv.env['QUOTE_API_URL'] ??
-      dotenv.env['BASE_QUOTE_URL'] ??
-      'https://zenquotes.io/api/random';
+  static const Duration _requestTimeout = Duration(seconds: 8);
+
+  String get _baseUrl {
+    try {
+      return dotenv.env['QUOTE_API_URL'] ??
+          dotenv.env['BASE_QUOTE_URL'] ??
+          'https://zenquotes.io/api/random';
+    } catch (_) {
+      return 'https://zenquotes.io/api/random';
+    }
+  }
 
   Future<Quote?> getQuote({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
-    
-    final String today = DateTime.now().toIso8601String().split('T').first; 
+
+    final String today = DateTime.now().toIso8601String().split('T').first;
     final String? cachedDate = prefs.getString('quote_date');
-    
+
     if (cachedDate == today && !forceRefresh) {
       return await _loadFromCache(prefs);
     }
@@ -40,19 +45,29 @@ class QuoteRepository {
   }
 
   Future<Quote> _fetchFromApi() async {
-    final response = await http.get(Uri.parse(_baseUrl));
+    final response = await http
+        .get(Uri.parse(_baseUrl), headers: const {'Accept': 'application/json'})
+        .timeout(_requestTimeout);
     if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      return Quote.fromJson(data.first);
+      final dynamic data = jsonDecode(response.body);
+      if (data is List && data.isNotEmpty) {
+        return Quote.fromJson(data.first as Map<String, dynamic>);
+      }
+      if (data is Map<String, dynamic>) {
+        return Quote.fromJson(data);
+      }
+      throw Exception('Unexpected quote payload');
     }
-    throw Exception('API Error');
+    throw Exception('Quote API status: ${response.statusCode}');
   }
 
-
-
-  Future<void> _saveToCache(SharedPreferences prefs, Quote quote, String date) async {
+  Future<void> _saveToCache(
+    SharedPreferences prefs,
+    Quote quote,
+    String date,
+  ) async {
     await prefs.setString('cached_quote', jsonEncode(quote.toJson()));
-    await prefs.setString('quote_date', date); 
+    await prefs.setString('quote_date', date);
   }
 
   Future<Quote?> _loadFromCache(SharedPreferences prefs) async {
@@ -60,6 +75,6 @@ class QuoteRepository {
     if (cachedData != null) {
       return Quote.fromJson(jsonDecode(cachedData));
     }
-    return null; 
+    return null;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../firebase_options.dart';
 
 class FirebaseService {
   static bool _isReady = false;
@@ -10,6 +11,15 @@ class FirebaseService {
     if (Firebase.apps.isNotEmpty) {
       _isReady = true;
       return;
+    }
+
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      _isReady = true;
+      return;
+    } catch (_) {
     }
 
     final apiKey = dotenv.env['FIREBASE_API_KEY'];

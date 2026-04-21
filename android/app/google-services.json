@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1029006610708",
+    "firebase_url": "https://loflow-af550-default-rtdb.firebaseio.com",
+    "project_id": "loflow-af550",
+    "storage_bucket": "loflow-af550.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1029006610708:android:3f5241c7cd0dd05a337201",
+        "android_client_info": {
+          "package_name": "com.example.liflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdI7MuE0hsoaSdQC1q76aa5-SwxV4D6Og"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/architecture/view_state.dart';
 import '../../core/localization/localization.dart';
 import '../../viewmodels/mood_view_model.dart';
-import '../widgets/mood_card.dart';
+import '../../viewmodels/quote_view_model.dart';
 import '../widgets/quote_widget.dart';
 import 'add_entry_screen.dart';
 import 'detail_screen.dart';
+import 'mood_history_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -16,40 +16,38 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: Text(
-              context.loc('tracker_feat'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            context.read<MoodViewModel>().loadMoods(),
+            context.read<QuoteViewModel>().loadQuote(),
+          ]);
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar.large(
+              title: Text(
+                context.loc('tracker_feat'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-            ],
-          ),
-          const SliverToBoxAdapter(child: QuoteWidget()),
-          const SliverToBoxAdapter(child: _SearchAndFilterPanel()),
-          const SliverToBoxAdapter(child: _StatsPanel()),
-          Consumer<MoodViewModel>(
-            builder: (context, provider, child) {
-              return switch (provider.moodsState) {
-                Initial() || Loading() => const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator()),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  ),
                 ),
-                Error(message: final msg) => SliverFillRemaining(
-                  child: Center(child: Text(msg)),
-                ),
-                Success() => _buildContent(context, provider),
-              };
-            },
-          ),
-        ],
+              ],
+            ),
+            const SliverToBoxAdapter(child: QuoteWidget()),
+            const SliverToBoxAdapter(child: _StatsPanel()),
+            const SliverToBoxAdapter(child: _InsightPanel()),
+            const SliverToBoxAdapter(child: _QuickActionsPanel()),
+            const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
@@ -59,218 +57,6 @@ class HomeScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: Text(context.loc('add_entry')),
       ),
-    );
-  }
-
-  Widget _buildContent(BuildContext context, MoodViewModel provider) {
-    final entries = provider.visibleMoods;
-
-    if (entries.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.bubble_chart_outlined,
-                size: 80,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                context.loc('no_data'),
-                style: TextStyle(fontSize: 18, color: Colors.grey.shade500),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final entry = entries[index];
-          return MoodCard(
-            entry: entry,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DetailScreen(entryId: entry.id!),
-              ),
-            ),
-          );
-        }, childCount: entries.length),
-      ),
-    );
-  }
-}
-
-class _SearchAndFilterPanel extends StatefulWidget {
-  const _SearchAndFilterPanel();
-
-  @override
-  State<_SearchAndFilterPanel> createState() => _SearchAndFilterPanelState();
-}
-
-class _SearchAndFilterPanelState extends State<_SearchAndFilterPanel> {
-  late final TextEditingController _searchController;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<MoodViewModel>(
-      builder: (context, provider, _) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Column(
-            children: [
-              TextField(
-                controller: _searchController,
-                onChanged: provider.setSearchQuery,
-                decoration: InputDecoration(
-                  hintText: context.loc('search_hint'),
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String?>(
-                      key: ValueKey<String?>(
-                        provider.selectedCategory,
-                      ),
-                      initialValue: provider.selectedCategory,
-                      decoration: InputDecoration(
-                        labelText: context.loc('category'),
-                        filled: true,
-                        fillColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.25),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      items: [
-                        DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text(context.loc('all_categories')),
-                        ),
-                        ...provider.availableCategories.map(
-                          (c) => DropdownMenuItem<String?>(
-                            value: c,
-                            child: Text(c),
-                          ),
-                        ),
-                      ],
-                      onChanged: provider.setSelectedCategory,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: DropdownButtonFormField<MoodSortOption>(
-                      key: ValueKey<MoodSortOption>(
-                        provider.sortOption,
-                      ),
-                      initialValue: provider.sortOption,
-                      decoration: InputDecoration(
-                        labelText: context.loc('sort'),
-                        filled: true,
-                        fillColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest
-                            .withValues(alpha: 0.25),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: MoodSortOption.newestFirst,
-                          child: Text(context.loc('newest_first')),
-                        ),
-                        DropdownMenuItem(
-                          value: MoodSortOption.oldestFirst,
-                          child: Text(context.loc('oldest_first')),
-                        ),
-                        DropdownMenuItem(
-                          value: MoodSortOption.reasonAsc,
-                          child: Text(context.loc('reason_az')),
-                        ),
-                        DropdownMenuItem(
-                          value: MoodSortOption.reasonDesc,
-                          child: Text(context.loc('reason_za')),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) provider.setSortOption(value);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final now = DateTime.now();
-                        final range = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(now.year - 5),
-                          lastDate: DateTime(now.year + 1),
-                          initialDateRange: provider.selectedDateRange,
-                        );
-                        provider.setDateRange(range);
-                      },
-                      icon: const Icon(Icons.calendar_today_outlined),
-                      label: Text(
-                        provider.selectedDateRange == null
-                            ? context.loc('date_range')
-                            : '${provider.selectedDateRange!.start.day}.${provider.selectedDateRange!.start.month} - ${provider.selectedDateRange!.end.day}.${provider.selectedDateRange!.end.month}',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton.outlined(
-                    onPressed: () {
-                      _searchController.clear();
-                      provider.clearFilters();
-                    },
-                    icon: const Icon(Icons.filter_alt_off_outlined),
-                    tooltip: context.loc('clear_filters'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -287,13 +73,10 @@ class _StatsPanel extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primaryContainer.withValues(alpha: 0.25),
+              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: _StatItem(
@@ -318,6 +101,140 @@ class _StatsPanel extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _InsightPanel extends StatelessWidget {
+  const _InsightPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<MoodViewModel>(
+      builder: (context, provider, _) {
+        final todayText = provider.hasTodayEntry
+            ? context.loc('logged_today')
+            : context.loc('not_logged_today');
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.55),
+                  Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: [
+                    Text('${context.loc('streak')}: ${provider.currentStreakDays}'),
+                    Text('${context.loc('today_status')}: $todayText'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: Text('${context.loc('mood_balance')}:')),
+                    Expanded(
+                      flex: 3,
+                      child: LinearProgressIndicator(
+                        value: provider.moodBalance,
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${(provider.moodBalance * 100).round()}%'),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Text(provider.favoriteEmoji, style: const TextStyle(fontSize: 18)),
+                    Text(context.loc('random_entry')),
+                    IconButton(
+                      onPressed: () {
+                        final randomId = provider.randomEntryId;
+                        if (randomId == null) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => DetailScreen(entryId: randomId)),
+                        );
+                      },
+                      icon: const Icon(Icons.shuffle),
+                      tooltip: context.loc('random_entry'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _QuickActionsPanel extends StatelessWidget {
+  const _QuickActionsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.loc('quick_actions'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MoodHistoryScreen()),
+                  ),
+                  icon: const Icon(Icons.history),
+                  label: Text(context.loc('open_history')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddEntryScreen()),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: Text(context.loc('add_today_entry')),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -6,13 +6,20 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../models/mood_entry.dart';
 
+class RemoteMoodSyncResult {
+  final String remoteId;
+  final String? imageUrl;
+
+  const RemoteMoodSyncResult({required this.remoteId, this.imageUrl});
+}
+
 class FirebaseMoodRemoteDataSource {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   bool get canUseRemote => FirebaseService.isReady;
 
-  Future<String?> saveMood(MoodEntry entry) async {
+  Future<RemoteMoodSyncResult?> saveMood(MoodEntry entry) async {
     if (!canUseRemote) return null;
 
     var imageUrl = entry.imageUrl;
@@ -32,12 +39,12 @@ class FirebaseMoodRemoteDataSource {
       'createdAt': Timestamp.fromDate(entry.dateTime),
     });
 
-    return doc.id;
+    return RemoteMoodSyncResult(remoteId: doc.id, imageUrl: imageUrl);
   }
 
-  Future<void> updateMood(MoodEntry entry) async {
+  Future<String?> updateMood(MoodEntry entry) async {
     if (!canUseRemote || entry.remoteId == null || entry.remoteId!.isEmpty) {
-      return;
+      return null;
     }
 
     var imageUrl = entry.imageUrl;
@@ -55,10 +62,20 @@ class FirebaseMoodRemoteDataSource {
       'imageUrl': imageUrl,
       'createdAt': Timestamp.fromDate(entry.dateTime),
     });
+
+    return imageUrl;
   }
 
-  Future<void> deleteMood(String remoteId) async {
+  Future<void> deleteMood(String remoteId, {String? imageUrl}) async {
     if (!canUseRemote || remoteId.isEmpty) return;
+
+    if (imageUrl != null && imageUrl.isNotEmpty && imageUrl.startsWith('http')) {
+      try {
+        await _storage.refFromURL(imageUrl).delete();
+      } catch (_) {
+      }
+    }
+
     await _firestore.collection('moods').doc(remoteId).delete();
   }
 

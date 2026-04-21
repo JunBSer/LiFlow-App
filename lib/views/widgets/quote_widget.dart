@@ -1,17 +1,17 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/architecture/view_state.dart';
 import '../../core/localization/localization.dart';
 import '../../data/models/quote_entry.dart';
-import '../../viewmodels/mood_view_model.dart';
+import '../../viewmodels/quote_view_model.dart';
 
 class QuoteWidget extends StatelessWidget {
   const QuoteWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<MoodViewModel>().quoteState;
+    final state = context.watch<QuoteViewModel>().quoteState;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -102,7 +102,7 @@ class QuoteWidget extends StatelessWidget {
             child: IconButton(
               icon: Icon(Icons.refresh_rounded, color: colorScheme.primary),
               onPressed: () {
-                context.read<MoodViewModel>().refreshQuoteManually();
+                context.read<QuoteViewModel>().refreshQuoteManually();
               },
             ),
           ),

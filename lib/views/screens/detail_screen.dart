@@ -19,7 +19,17 @@ class DetailScreen extends StatelessWidget {
     final entry = provider.getEntryById(entryId);
 
     if (entry == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Text(
+            context.loc('no_data'),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(

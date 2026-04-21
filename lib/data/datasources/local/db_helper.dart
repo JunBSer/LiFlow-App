@@ -93,6 +93,32 @@ class DBHelper {
     );
   }
 
+  Future<int> updateSyncedFields({
+    required int id,
+    String? remoteId,
+    String? imageUrl,
+  }) async {
+    final db = await database;
+    final payload = <String, Object?>{};
+
+    if (remoteId != null) {
+      payload['remoteId'] = remoteId;
+    }
+    if (imageUrl != null) {
+      payload['imageUrl'] = imageUrl;
+    }
+    if (payload.isEmpty) {
+      return 0;
+    }
+
+    return await db.update(
+      'moods',
+      payload,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<int> deleteEntry(int id) async {
     final db = await database;
     return await db.delete('moods', where: 'id = ?', whereArgs: [id]);

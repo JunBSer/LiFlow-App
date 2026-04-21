@@ -1,80 +1,66 @@
+import 'dart:math';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/architecture/view_state.dart';
 import '../data/models/mood_entry.dart';
-import '../data/models/quote_entry.dart';
 import '../data/repositories/mood_repository.dart';
-import '../data/repositories/quote_repository.dart';
+import 'package:string_similarity/string_similarity.dart';
 
 enum MoodSortOption { newestFirst, oldestFirst, reasonAsc, reasonDesc }
 
 class MoodViewModel with ChangeNotifier {
-  final QuoteRepository _qRepository = QuoteRepository();
-  final MoodRepository _mRepository = MoodRepository();
+  final MoodRepository _mRepository;
 
   ViewState<List<MoodEntry>> _moodsState = const Initial();
-  ViewState<Quote> _quoteState = const Initial();
 
   String _searchQuery = '';
   String? _selectedCategory;
   DateTimeRange? _selectedDateRange;
   MoodSortOption _sortOption = MoodSortOption.newestFirst;
+  Timer? _searchDebounce;
+  bool _isDerivedDirty = true;
+  List<MoodEntry> _visibleMoodsCache = const [];
+  List<String> _availableCategoriesCache = const [];
+  bool _disposed = false;
 
   ViewState<List<MoodEntry>> get moodsState => _moodsState;
-  ViewState<Quote> get quoteState => _quoteState;
   String get searchQuery => _searchQuery;
   String? get selectedCategory => _selectedCategory;
   DateTimeRange? get selectedDateRange => _selectedDateRange;
   MoodSortOption get sortOption => _sortOption;
 
-  MoodViewModel() {
-    refreshAll();
-  }
-
-  Future<void> refreshAll() async {
-    await Future.wait([loadMoods(), loadQuote()]);
-  }
-
-  Future<void> loadQuote() async {
-    await _fetchQuoteLogic(forceRefresh: false);
-  }
-
-  Future<void> refreshQuoteManually() async {
-    await _fetchQuoteLogic(forceRefresh: true);
-  }
-
-  Future<void> _fetchQuoteLogic({required bool forceRefresh}) async {
-    _quoteState = const Loading();
-    notifyListeners();
-
-    try {
-      final quote = await _qRepository.getQuote(forceRefresh: forceRefresh);
-      if (quote != null) {
-        _quoteState = Success(quote);
-      } else {
-        _quoteState = Success(
-          Quote(text: 'No quote available', author: 'System'),
-        );
-      }
-    } catch (e) {
-      _quoteState = Error(e.toString());
+  List<MoodEntry> get _allEntries {
+    final state = _moodsState;
+    if (state is Success<List<MoodEntry>>) {
+      return state.data;
     }
+    return const [];
+  }
 
-    notifyListeners();
+  MoodViewModel({MoodRepository? repository})
+    : _mRepository = repository ?? MoodRepository() {
+    Future.microtask(loadMoods);
   }
 
   Future<void> loadMoods() async {
     _moodsState = const Loading();
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
 
     try {
       final data = await _mRepository.getAllMoods();
       _moodsState = Success(data);
+      _markDerivedDirty();
     } catch (e) {
       _moodsState = const Error('Failed to load history');
     }
 
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> addMood(MoodEntry entry) async {
@@ -93,23 +79,43 @@ class MoodViewModel with ChangeNotifier {
   }
 
   void setSearchQuery(String query) {
-    _searchQuery = query.trim().toLowerCase();
-    notifyListeners();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 220), () {
+      final next = query.trim().toLowerCase();
+      if (_searchQuery == next) return;
+      _searchQuery = next;
+      _markDerivedDirty();
+      if (!_disposed) {
+        notifyListeners();
+      }
+    });
   }
 
   void setSelectedCategory(String? category) {
+    if (_selectedCategory == category) return;
     _selectedCategory = category;
-    notifyListeners();
+    _markDerivedDirty();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   void setDateRange(DateTimeRange? range) {
+    if (_selectedDateRange == range) return;
     _selectedDateRange = range;
-    notifyListeners();
+    _markDerivedDirty();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   void setSortOption(MoodSortOption option) {
+    if (_sortOption == option) return;
     _sortOption = option;
-    notifyListeners();
+    _markDerivedDirty();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   void clearFilters() {
@@ -117,60 +123,33 @@ class MoodViewModel with ChangeNotifier {
     _selectedCategory = null;
     _selectedDateRange = null;
     _sortOption = MoodSortOption.newestFirst;
-    notifyListeners();
+    _markDerivedDirty();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   List<String> get availableCategories {
-    final state = _moodsState;
-    if (state is! Success<List<MoodEntry>>) return const [];
-
-    final unique = <String>{};
-    for (final mood in state.data) {
-      if (mood.category.trim().isNotEmpty) {
-        unique.add(mood.category.trim());
-      }
-    }
-
-    final sorted = unique.toList()..sort();
-    return sorted;
+    _computeDerivedIfNeeded();
+    return _availableCategoriesCache;
   }
 
   List<MoodEntry> get visibleMoods {
-    final state = _moodsState;
-    if (state is! Success<List<MoodEntry>>) return const [];
-
-    final result = state.data.where(_matchesFilters).toList();
-
-    result.sort((a, b) {
-      switch (_sortOption) {
-        case MoodSortOption.newestFirst:
-          return b.dateTime.compareTo(a.dateTime);
-        case MoodSortOption.oldestFirst:
-          return a.dateTime.compareTo(b.dateTime);
-        case MoodSortOption.reasonAsc:
-          return a.reason.toLowerCase().compareTo(b.reason.toLowerCase());
-        case MoodSortOption.reasonDesc:
-          return b.reason.toLowerCase().compareTo(a.reason.toLowerCase());
-      }
-    });
-
-    return result;
+    _computeDerivedIfNeeded();
+    return _visibleMoodsCache;
   }
 
   int get totalEntries {
-    final state = _moodsState;
-    if (state is! Success<List<MoodEntry>>) return 0;
-    return state.data.length;
+    return _allEntries.length;
   }
 
   String get topCategory {
-    final state = _moodsState;
-    if (state is! Success<List<MoodEntry>> || state.data.isEmpty) {
+    if (_allEntries.isEmpty) {
       return 'N/A';
     }
 
     final counts = <String, int>{};
-    for (final entry in state.data) {
+    for (final entry in _allEntries) {
       counts.update(entry.category, (value) => value + 1, ifAbsent: () => 1);
     }
 
@@ -178,12 +157,96 @@ class MoodViewModel with ChangeNotifier {
   }
 
   int get entriesThisWeek {
-    final state = _moodsState;
-    if (state is! Success<List<MoodEntry>>) return 0;
-
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    return state.data.where((entry) => entry.dateTime.isAfter(weekStart)).length;
+    return _allEntries
+        .where((entry) => entry.dateTime.isAfter(weekStart))
+        .length;
+  }
+
+  bool get hasTodayEntry {
+    final now = DateTime.now();
+    return _allEntries.any(
+      (entry) =>
+          entry.dateTime.year == now.year &&
+          entry.dateTime.month == now.month &&
+          entry.dateTime.day == now.day,
+    );
+  }
+
+  int get currentStreakDays {
+    if (!hasTodayEntry) return 0;
+
+    final uniqueDays =
+        _allEntries
+            .map(
+              (entry) => DateTime(
+                entry.dateTime.year,
+                entry.dateTime.month,
+                entry.dateTime.day,
+              ),
+            )
+            .toSet()
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
+
+    var streak = 0;
+    var cursor = DateTime.now();
+    cursor = DateTime(cursor.year, cursor.month, cursor.day);
+
+    while (uniqueDays.any((day) => day == cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+
+    return streak;
+  }
+
+  String get favoriteEmoji {
+    if (_allEntries.isEmpty) return '-';
+
+    final counts = <String, int>{};
+    for (final entry in _allEntries) {
+      counts.update(entry.emoji, (value) => value + 1, ifAbsent: () => 1);
+    }
+    return counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  }
+
+  double get moodBalance {
+    if (_allEntries.isEmpty) return 0.5;
+
+    const positive = {
+      '\u{1F929}',
+      '\u{1F60A}',
+      '\u{1F973}',
+      '\u{1F970}',
+      '\u{1F60E}',
+    };
+    const negative = {
+      '\u{1F622}',
+      '\u{1F621}',
+      '\u{1F631}',
+      '\u{1F630}',
+      '\u{1F922}',
+    };
+
+    var score = 0.0;
+    for (final entry in _allEntries) {
+      if (positive.contains(entry.emoji)) {
+        score += 1;
+      } else if (negative.contains(entry.emoji)) {
+        score -= 1;
+      }
+    }
+
+    final normalized = (score / (_allEntries.length * 2)) + 0.5;
+    return normalized.clamp(0.0, 1.0);
+  }
+
+  int? get randomEntryId {
+    if (_allEntries.isEmpty) return null;
+    final randomIndex = Random().nextInt(_allEntries.length);
+    return _allEntries[randomIndex].id;
   }
 
   bool _matchesFilters(MoodEntry entry) {
@@ -220,11 +283,8 @@ class MoodViewModel with ChangeNotifier {
     for (final field in fields) {
       for (final token in field.split(RegExp(r'\s+'))) {
         if (token.isEmpty) continue;
-        final distance = _levenshteinDistance(token, query);
-        final maxLen = token.length > query.length
-            ? token.length
-            : query.length;
-        final score = 1.0 - (distance / maxLen);
+
+        final score = token.similarityTo(query);
         if (score > bestScore) {
           bestScore = score;
         }
@@ -232,36 +292,6 @@ class MoodViewModel with ChangeNotifier {
     }
 
     return bestScore >= 0.62;
-  }
-
-  int _levenshteinDistance(String s, String t) {
-    if (s == t) return 0;
-    if (s.isEmpty) return t.length;
-    if (t.isEmpty) return s.length;
-
-    final previous = List<int>.generate(t.length + 1, (i) => i);
-    final current = List<int>.filled(t.length + 1, 0);
-
-    for (var i = 1; i <= s.length; i++) {
-      current[0] = i;
-
-      for (var j = 1; j <= t.length; j++) {
-        final cost = s.codeUnitAt(i - 1) == t.codeUnitAt(j - 1) ? 0 : 1;
-        final deletion = previous[j] + 1;
-        final insertion = current[j - 1] + 1;
-        final substitution = previous[j - 1] + cost;
-
-        current[j] = deletion < insertion
-            ? (deletion < substitution ? deletion : substitution)
-            : (insertion < substitution ? insertion : substitution);
-      }
-
-      for (var j = 0; j <= t.length; j++) {
-        previous[j] = current[j];
-      }
-    }
-
-    return previous[t.length];
   }
 
   MoodEntry? getEntryById(int id) {
@@ -274,11 +304,50 @@ class MoodViewModel with ChangeNotifier {
     return null;
   }
 
-  Quote? get currentQuote {
-    final state = _quoteState;
-    if (state is Success<Quote>) {
-      return state.data;
+  void _markDerivedDirty() {
+    _isDerivedDirty = true;
+  }
+
+  void _computeDerivedIfNeeded() {
+    if (!_isDerivedDirty) return;
+
+    final state = _moodsState;
+    if (state is! Success<List<MoodEntry>>) {
+      _visibleMoodsCache = const [];
+      _availableCategoriesCache = const [];
+      _isDerivedDirty = false;
+      return;
     }
-    return null;
+
+    final data = state.data;
+    final uniqueCategories = <String>{};
+    for (final mood in data) {
+      final category = mood.category.trim();
+      if (category.isNotEmpty) uniqueCategories.add(category);
+    }
+    _availableCategoriesCache = uniqueCategories.toList()..sort();
+
+    final filtered = data.where(_matchesFilters).toList();
+    filtered.sort((a, b) {
+      switch (_sortOption) {
+        case MoodSortOption.newestFirst:
+          return b.dateTime.compareTo(a.dateTime);
+        case MoodSortOption.oldestFirst:
+          return a.dateTime.compareTo(b.dateTime);
+        case MoodSortOption.reasonAsc:
+          return a.reason.toLowerCase().compareTo(b.reason.toLowerCase());
+        case MoodSortOption.reasonDesc:
+          return b.reason.toLowerCase().compareTo(a.reason.toLowerCase());
+      }
+    });
+    _visibleMoodsCache = filtered;
+    _isDerivedDirty = false;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 }

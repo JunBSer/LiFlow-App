@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/localization/localization.dart';
@@ -54,6 +55,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   late String _selectedEmoji;
   late String _selectedCategory;
   String? _imagePath;
+  bool _isPickingImage = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -163,8 +166,14 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.image_outlined),
+                onPressed: _isPickingImage ? null : _pickImage,
+                icon: _isPickingImage
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.image_outlined),
                 label: Text(context.loc('select_image')),
               ),
               if (_imagePath != null) ...[
@@ -174,8 +183,26 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   child: SizedBox(
                     height: 180,
                     child: _imagePath!.startsWith('http')
-                        ? Image.network(_imagePath!, fit: BoxFit.cover)
-                        : Image.file(File(_imagePath!), fit: BoxFit.cover),
+                        ? Image.network(
+                            _imagePath!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const ColoredBox(
+                              color: Colors.black12,
+                              child: Center(
+                                child: Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          )
+                        : Image.file(
+                            File(_imagePath!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => const ColoredBox(
+                              color: Colors.black12,
+                              child: Center(
+                                child: Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -204,8 +231,14 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: _save,
-                icon: const Icon(Icons.check),
+                onPressed: _isSaving ? null : _save,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check),
                 label: Text(
                   context.loc('save'),
                   style: const TextStyle(fontSize: 18),
@@ -219,44 +252,75 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   Future<void> _pickImage() async {
-    final image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (image == null || !mounted) return;
-
+    if (_isPickingImage) return;
     setState(() {
-      _imagePath = image.path;
+      _isPickingImage = true;
     });
+
+    try {
+      final image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (image == null || !mounted) return;
+
+      setState(() {
+        _imagePath = image.path;
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      if (e.code != 'already_active') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Image pick failed: ${e.message ?? e.code}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingImage = false;
+        });
+      }
+    }
   }
 
   Future<void> _save() async {
-    if (_reasonController.text.trim().isEmpty) return;
+    if (_isSaving || _reasonController.text.trim().isEmpty) return;
+    setState(() {
+      _isSaving = true;
+    });
 
-    final keywords = _keywordsController.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    try {
+      final keywords = _keywordsController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
 
-    final entry = MoodEntry(
-      id: widget.entryToEdit?.id,
-      remoteId: widget.entryToEdit?.remoteId,
-      emoji: _selectedEmoji,
-      reason: _reasonController.text.trim(),
-      category: _selectedCategory,
-      keywords: keywords,
-      imageUrl: _imagePath,
-      dateTime: widget.entryToEdit?.dateTime ?? DateTime.now(),
-    );
+      final entry = MoodEntry(
+        id: widget.entryToEdit?.id,
+        remoteId: widget.entryToEdit?.remoteId,
+        emoji: _selectedEmoji,
+        reason: _reasonController.text.trim(),
+        category: _selectedCategory,
+        keywords: keywords,
+        imageUrl: _imagePath,
+        dateTime: widget.entryToEdit?.dateTime ?? DateTime.now(),
+      );
 
-    if (widget.entryToEdit == null) {
-      await context.read<MoodViewModel>().addMood(entry);
-    } else {
-      await context.read<MoodViewModel>().updateMood(entry);
+      if (widget.entryToEdit == null) {
+        await context.read<MoodViewModel>().addMood(entry);
+      } else {
+        await context.read<MoodViewModel>().updateMood(entry);
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
-
-    if (!mounted) return;
-    Navigator.pop(context);
   }
 }

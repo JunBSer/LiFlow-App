@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../core/preferences/prefs_helper.dart';
 import '../core/services/notification_service.dart';
@@ -7,6 +9,7 @@ class SettingsViewModel with ChangeNotifier {
   String _langCode = 'ru';
   bool _dailyReminderEnabled = false;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 20, minute: 0);
+  bool _disposed = false;
 
   bool get isDarkMode => _isDarkMode;
   String get langCode => _langCode;
@@ -25,25 +28,35 @@ class SettingsViewModel with ChangeNotifier {
     _reminderTime = TimeOfDay(hour: hour, minute: minute);
 
     if (_dailyReminderEnabled) {
-      await NotificationService.instance.scheduleDailyReminder(
-        hour: _reminderTime.hour,
-        minute: _reminderTime.minute,
-      );
+      try {
+        await NotificationService.instance.scheduleDailyReminder(
+          hour: _reminderTime.hour,
+          minute: _reminderTime.minute,
+        );
+      } catch (_) {
+        _dailyReminderEnabled = false;
+      }
     }
 
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   void toggleTheme(bool value) {
     _isDarkMode = value;
-    PrefsHelper.saveTheme(value);
-    notifyListeners();
+    unawaited(PrefsHelper.saveTheme(value));
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   void setLanguage(String lang) {
     _langCode = lang;
-    PrefsHelper.saveLanguage(lang);
-    notifyListeners();
+    unawaited(PrefsHelper.saveLanguage(lang));
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> toggleDailyReminder(bool enabled) async {
@@ -51,6 +64,7 @@ class SettingsViewModel with ChangeNotifier {
     await PrefsHelper.saveReminderEnabled(enabled);
 
     if (enabled) {
+      await NotificationService.instance.requestPermissionsIfNeeded();
       await NotificationService.instance.scheduleDailyReminder(
         hour: _reminderTime.hour,
         minute: _reminderTime.minute,
@@ -58,7 +72,9 @@ class SettingsViewModel with ChangeNotifier {
     } else {
       await NotificationService.instance.cancelDailyReminder();
     }
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
 
   Future<void> setReminderTime(TimeOfDay time) async {
@@ -71,6 +87,14 @@ class SettingsViewModel with ChangeNotifier {
         minute: _reminderTime.minute,
       );
     }
-    notifyListeners();
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
