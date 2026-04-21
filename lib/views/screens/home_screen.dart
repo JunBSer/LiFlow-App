@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/localization/localization.dart';
@@ -73,7 +73,9 @@ class _StatsPanel extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+              color: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -123,8 +125,12 @@ class _InsightPanel extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.55),
-                  Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.35),
+                  Theme.of(
+                    context,
+                  ).colorScheme.secondaryContainer.withValues(alpha: 0.55),
+                  Theme.of(
+                    context,
+                  ).colorScheme.tertiaryContainer.withValues(alpha: 0.35),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -138,7 +144,9 @@ class _InsightPanel extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 8,
                   children: [
-                    Text('${context.loc('streak')}: ${provider.currentStreakDays}'),
+                    Text(
+                      '${context.loc('streak')}: ${provider.currentStreakDays}',
+                    ),
                     Text('${context.loc('today_status')}: $todayText'),
                   ],
                 ),
@@ -164,7 +172,10 @@ class _InsightPanel extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    Text(provider.favoriteEmoji, style: const TextStyle(fontSize: 18)),
+                    Text(
+                      provider.favoriteEmoji,
+                      style: const TextStyle(fontSize: 18),
+                    ),
                     Text(context.loc('random_entry')),
                     IconButton(
                       onPressed: () {
@@ -172,7 +183,9 @@ class _InsightPanel extends StatelessWidget {
                         if (randomId == null) return;
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => DetailScreen(entryId: randomId)),
+                          MaterialPageRoute(
+                            builder: (_) => DetailScreen(entryId: randomId),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.shuffle),
@@ -199,7 +212,9 @@ class _QuickActionsPanel extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
+          color: Theme.of(
+            context,
+          ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.22),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -217,7 +232,9 @@ class _QuickActionsPanel extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const MoodHistoryScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const MoodHistoryScreen(),
+                    ),
                   ),
                   icon: const Icon(Icons.history),
                   label: Text(context.loc('open_history')),

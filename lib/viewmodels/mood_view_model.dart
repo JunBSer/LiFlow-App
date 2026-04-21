@@ -2,11 +2,11 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:string_similarity/string_similarity.dart';
 
 import '../core/architecture/view_state.dart';
 import '../data/models/mood_entry.dart';
 import '../data/repositories/mood_repository.dart';
-import 'package:string_similarity/string_similarity.dart';
 
 enum MoodSortOption { newestFirst, oldestFirst, reasonAsc, reasonDesc }
 
@@ -40,14 +40,24 @@ class MoodViewModel with ChangeNotifier {
   }
 
   MoodViewModel({MoodRepository? repository})
-    : _mRepository = repository ?? MoodRepository() {
-    Future.microtask(loadMoods);
+      : _mRepository = repository ?? MoodRepository() {
+    
+    _mRepository.onSyncCompleted = () {
+      loadMoods(silent: true);
+    };
+
+    Future.wait([
+      _mRepository.syncFromRemote(),
+      _mRepository.syncPendingMoods(),
+    ]).then((_) => loadMoods(silent: true));
+
+    Future.microtask(() => loadMoods());
   }
 
-  Future<void> loadMoods() async {
-    _moodsState = const Loading();
-    if (!_disposed) {
-      notifyListeners();
+  Future<void> loadMoods({bool silent = false}) async {
+    if (!silent) {
+      _moodsState = const Loading();
+      if (!_disposed) notifyListeners();
     }
 
     try {
@@ -58,24 +68,22 @@ class MoodViewModel with ChangeNotifier {
       _moodsState = const Error('Failed to load history');
     }
 
-    if (!_disposed) {
-      notifyListeners();
-    }
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> addMood(MoodEntry entry) async {
     await _mRepository.addMood(entry);
-    await loadMoods();
+    await loadMoods(silent: true);
   }
 
   Future<void> updateMood(MoodEntry entry) async {
     await _mRepository.updateMood(entry);
-    await loadMoods();
+    await loadMoods(silent: true);
   }
 
   Future<void> deleteMood(int id) async {
     await _mRepository.deleteMood(id);
-    await loadMoods();
+    await loadMoods(silent: true);
   }
 
   void setSearchQuery(String query) {
@@ -139,14 +147,10 @@ class MoodViewModel with ChangeNotifier {
     return _visibleMoodsCache;
   }
 
-  int get totalEntries {
-    return _allEntries.length;
-  }
+  int get totalEntries => _allEntries.length;
 
   String get topCategory {
-    if (_allEntries.isEmpty) {
-      return 'N/A';
-    }
+    if (_allEntries.isEmpty) return 'N/A';
 
     final counts = <String, int>{};
     for (final entry in _allEntries) {
@@ -159,9 +163,7 @@ class MoodViewModel with ChangeNotifier {
   int get entriesThisWeek {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    return _allEntries
-        .where((entry) => entry.dateTime.isAfter(weekStart))
-        .length;
+    return _allEntries.where((entry) => entry.dateTime.isAfter(weekStart)).length;
   }
 
   bool get hasTodayEntry {
@@ -177,18 +179,17 @@ class MoodViewModel with ChangeNotifier {
   int get currentStreakDays {
     if (!hasTodayEntry) return 0;
 
-    final uniqueDays =
-        _allEntries
-            .map(
-              (entry) => DateTime(
-                entry.dateTime.year,
-                entry.dateTime.month,
-                entry.dateTime.day,
-              ),
-            )
-            .toSet()
-            .toList()
-          ..sort((a, b) => b.compareTo(a));
+    final uniqueDays = _allEntries
+        .map(
+          (entry) => DateTime(
+            entry.dateTime.year,
+            entry.dateTime.month,
+            entry.dateTime.day,
+          ),
+        )
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
 
     var streak = 0;
     var cursor = DateTime.now();
@@ -215,20 +216,8 @@ class MoodViewModel with ChangeNotifier {
   double get moodBalance {
     if (_allEntries.isEmpty) return 0.5;
 
-    const positive = {
-      '\u{1F929}',
-      '\u{1F60A}',
-      '\u{1F973}',
-      '\u{1F970}',
-      '\u{1F60E}',
-    };
-    const negative = {
-      '\u{1F622}',
-      '\u{1F621}',
-      '\u{1F631}',
-      '\u{1F630}',
-      '\u{1F922}',
-    };
+    const positive = {'\u{1F929}', '\u{1F60A}', '\u{1F973}', '\u{1F970}', '\u{1F60E}'};
+    const negative = {'\u{1F622}', '\u{1F621}', '\u{1F631}', '\u{1F630}', '\u{1F922}'};
 
     var score = 0.0;
     for (final entry in _allEntries) {
@@ -250,11 +239,9 @@ class MoodViewModel with ChangeNotifier {
   }
 
   bool _matchesFilters(MoodEntry entry) {
-    final categoryMatch =
-        _selectedCategory == null || entry.category == _selectedCategory;
+    final categoryMatch = _selectedCategory == null || entry.category == _selectedCategory;
 
-    final dateMatch =
-        _selectedDateRange == null ||
+    final dateMatch = _selectedDateRange == null ||
         (entry.dateTime.isAfter(
               _selectedDateRange!.start.subtract(const Duration(seconds: 1)),
             ) &&
@@ -262,8 +249,7 @@ class MoodViewModel with ChangeNotifier {
               _selectedDateRange!.end.add(const Duration(days: 1)),
             ));
 
-    final queryMatch =
-        _searchQuery.isEmpty || _matchesQuery(entry, _searchQuery);
+    final queryMatch = _searchQuery.isEmpty || _matchesQuery(entry, _searchQuery);
 
     return categoryMatch && dateMatch && queryMatch;
   }
@@ -284,6 +270,7 @@ class MoodViewModel with ChangeNotifier {
       for (final token in field.split(RegExp(r'\s+'))) {
         if (token.isEmpty) continue;
 
+        // Нечеткий поиск через string_similarity
         final score = token.similarityTo(query);
         if (score > bestScore) {
           bestScore = score;
@@ -328,6 +315,7 @@ class MoodViewModel with ChangeNotifier {
     _availableCategoriesCache = uniqueCategories.toList()..sort();
 
     final filtered = data.where(_matchesFilters).toList();
+    
     filtered.sort((a, b) {
       switch (_sortOption) {
         case MoodSortOption.newestFirst:
@@ -340,6 +328,7 @@ class MoodViewModel with ChangeNotifier {
           return b.reason.toLowerCase().compareTo(a.reason.toLowerCase());
       }
     });
+    
     _visibleMoodsCache = filtered;
     _isDerivedDirty = false;
   }

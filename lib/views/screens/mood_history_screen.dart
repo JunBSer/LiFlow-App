@@ -141,7 +141,7 @@ class _SearchAndFilterPanelState extends State<_SearchAndFilterPanel> {
                     child: DropdownButtonFormField<String?>(
                       key: ValueKey<String?>(provider.selectedCategory),
                       initialValue: provider.selectedCategory,
-                      isExpanded: true, 
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: context.loc('category'),
                         filled: true,
@@ -157,15 +157,15 @@ class _SearchAndFilterPanelState extends State<_SearchAndFilterPanel> {
                       items: [
                         DropdownMenuItem<String?>(
                           value: null,
-                          child: Text(context.loc('all_categories'), 
-                          overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            context.loc('all_categories'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         ...provider.availableCategories.map(
                           (c) => DropdownMenuItem<String?>(
                             value: c,
-                            child: Text(
-                              c,
-                              overflow: TextOverflow.ellipsis),
+                            child: Text(c, overflow: TextOverflow.ellipsis),
                           ),
                         ),
                       ],
@@ -192,19 +192,31 @@ class _SearchAndFilterPanelState extends State<_SearchAndFilterPanel> {
                       items: [
                         DropdownMenuItem(
                           value: MoodSortOption.newestFirst,
-                          child: Text(context.loc('newest_first'), overflow: TextOverflow.ellipsis,),
+                          child: Text(
+                            context.loc('newest_first'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         DropdownMenuItem(
                           value: MoodSortOption.oldestFirst,
-                          child: Text(context.loc('oldest_first'), overflow: TextOverflow.ellipsis,),
+                          child: Text(
+                            context.loc('oldest_first'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         DropdownMenuItem(
                           value: MoodSortOption.reasonAsc,
-                          child: Text(context.loc('reason_az'), overflow: TextOverflow.ellipsis,),
+                          child: Text(
+                            context.loc('reason_az'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         DropdownMenuItem(
                           value: MoodSortOption.reasonDesc,
-                          child: Text(context.loc('reason_za'), overflow: TextOverflow.ellipsis,),
+                          child: Text(
+                            context.loc('reason_za'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                       onChanged: (value) {
@@ -235,7 +247,7 @@ class _SearchAndFilterPanelState extends State<_SearchAndFilterPanel> {
                             ? context.loc('date_range')
                             : '${provider.selectedDateRange!.start.day}.${provider.selectedDateRange!.start.month} - ${provider.selectedDateRange!.end.day}.${provider.selectedDateRange!.end.month}',
 
-                            overflow: TextOverflow.ellipsis, 
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),

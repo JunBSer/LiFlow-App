@@ -19,8 +19,7 @@ class FirebaseService {
       );
       _isReady = true;
       return;
-    } catch (_) {
-    }
+    } catch (_) {}
 
     final apiKey = dotenv.env['FIREBASE_API_KEY'];
     final appId = dotenv.env['FIREBASE_APP_ID'];

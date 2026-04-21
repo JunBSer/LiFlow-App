@@ -90,5 +90,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'loflow-af550.firebasestorage.app',
     measurementId: 'G-1PD557VL4P',
   );
-
 }

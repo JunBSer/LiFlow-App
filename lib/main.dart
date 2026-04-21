@@ -28,9 +28,9 @@ Future<void> _bootstrapServices() async {
   } catch (_) {}
 
   try {
-    await NotificationService.instance
-        .initialize()
-        .timeout(const Duration(seconds: 5));
+    await NotificationService.instance.initialize().timeout(
+      const Duration(seconds: 5),
+    );
   } catch (_) {}
 }
 
@@ -60,9 +60,7 @@ class MyApp extends StatelessWidget {
                 colorSchemeSeed: Colors.deepPurple,
                 brightness: Brightness.dark,
               ),
-              themeMode: settings.isDarkMode
-                  ? ThemeMode.dark
-                  : ThemeMode.light,
+              themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
               home: const SplashScreen(),
             ),
           );

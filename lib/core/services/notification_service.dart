@@ -21,7 +21,6 @@ class NotificationService {
     tzdata.initializeTimeZones();
     await _configureLocalTimeZone();
 
-  
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -29,7 +28,6 @@ class NotificationService {
       requestSoundPermission: true,
     );
 
-   
     await _plugin.initialize(
       settings: const InitializationSettings(android: android, iOS: darwin),
     );
@@ -59,10 +57,15 @@ class NotificationService {
   String? _ianaFromKnownTimeZoneName(String rawName) {
     final normalized = rawName.trim().toUpperCase();
     const mapped = <String, String>{
-      'UTC': 'UTC', 'GMT': 'UTC', 'MSK': 'Europe/Moscow',
-      'EET': 'Europe/Athens', 'EEST': 'Europe/Athens',
-      'CET': 'Europe/Paris', 'CEST': 'Europe/Paris',
-      'WET': 'Europe/Lisbon', 'WEST': 'Europe/Lisbon',
+      'UTC': 'UTC',
+      'GMT': 'UTC',
+      'MSK': 'Europe/Moscow',
+      'EET': 'Europe/Athens',
+      'EEST': 'Europe/Athens',
+      'CET': 'Europe/Paris',
+      'CEST': 'Europe/Paris',
+      'WET': 'Europe/Lisbon',
+      'WEST': 'Europe/Lisbon',
     };
 
     if (mapped.containsKey(normalized)) return mapped[normalized];
@@ -101,15 +104,13 @@ class NotificationService {
     return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
-
   Future<void> scheduleDailyReminder({
     required int hour,
     required int minute,
   }) async {
     if (!_initialized) await initialize();
-    
-    
-    await requestPermissionsIfNeeded(); 
+
+    await requestPermissionsIfNeeded();
 
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
@@ -139,7 +140,7 @@ class NotificationService {
 
   Future<void> cancelDailyReminder() async {
     if (!_initialized) await initialize();
-   
+
     await _plugin.cancel(id: _dailyReminderId);
   }
 
@@ -162,7 +163,6 @@ class NotificationService {
     required AndroidScheduleMode preferredMode,
     DateTimeComponents? matchDateTimeComponents,
   }) async {
-    
     try {
       await _plugin.zonedSchedule(
         id: id,

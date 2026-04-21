@@ -111,12 +111,7 @@ class DBHelper {
       return 0;
     }
 
-    return await db.update(
-      'moods',
-      payload,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.update('moods', payload, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteEntry(int id) async {
