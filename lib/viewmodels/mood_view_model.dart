@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:string_similarity/string_similarity.dart';
 
 import '../core/architecture/view_state.dart';
@@ -11,7 +12,9 @@ import '../data/repositories/mood_repository.dart';
 enum MoodSortOption { newestFirst, oldestFirst, reasonAsc, reasonDesc }
 
 class MoodViewModel with ChangeNotifier {
-  final MoodRepository _mRepository;
+  static const String _lastActiveUserIdKey = 'lastActiveUserId';
+  final MoodRepository _repository;
+  final Random _random = Random();
 
   ViewState<List<MoodEntry>> _moodsState = const Initial();
 
@@ -20,10 +23,16 @@ class MoodViewModel with ChangeNotifier {
   DateTimeRange? _selectedDateRange;
   MoodSortOption _sortOption = MoodSortOption.newestFirst;
   Timer? _searchDebounce;
+  StreamSubscription<List<MoodEntry>>? _remoteSubscription;
+  Future<void> _remoteSyncQueue = Future.value();
+  bool _silentReloadScheduled = false;
+  bool _isLoadInProgress = false;
+  bool _pendingSilentReload = false;
   bool _isDerivedDirty = true;
   List<MoodEntry> _visibleMoodsCache = const [];
   List<String> _availableCategoriesCache = const [];
   bool _disposed = false;
+  String? _currentUserId;
 
   ViewState<List<MoodEntry>> get moodsState => _moodsState;
   String get searchQuery => _searchQuery;
@@ -40,49 +49,111 @@ class MoodViewModel with ChangeNotifier {
   }
 
   MoodViewModel({MoodRepository? repository})
-      : _mRepository = repository ?? MoodRepository() {
-    
-    _mRepository.onSyncCompleted = () {
-      loadMoods(silent: true);
+    : _repository = repository ?? MoodRepository() {
+    _repository.onSyncCompleted = () {
+      _scheduleSilentReload();
     };
 
-    Future.wait([
-      _mRepository.syncFromRemote(),
-      _mRepository.syncPendingMoods(),
-    ]).then((_) => loadMoods(silent: true));
+    unawaited(Future.microtask(loadMoods));
+  }
 
-    Future.microtask(() => loadMoods());
+  Future<void> setCurrentUser(String? userId) async {
+    if (_currentUserId == userId) return;
+    final previousPersistedUserId = await _getLastActiveUserId();
+    _currentUserId = userId;
+
+    await _remoteSubscription?.cancel();
+    _remoteSubscription = null;
+
+    if (userId == null) {
+      _moodsState = const Success([]);
+      _markDerivedDirty();
+      _notifySafely();
+      return;
+    }
+
+    if (previousPersistedUserId != null && previousPersistedUserId != userId) {
+      await _repository.clearLocalData();
+    }
+    await _setLastActiveUserId(userId);
+
+    _remoteSubscription = _repository.watchRemoteMoods().listen((
+      remoteEntries,
+    ) {
+      _remoteSyncQueue = _remoteSyncQueue.then((_) async {
+        await _repository.applyRemoteSnapshot(remoteEntries);
+        await loadMoods(silent: true);
+      }).catchError((_) {});
+    });
+
+    unawaited(
+      Future.wait([
+        _repository.syncFromRemote(),
+        _repository.syncPendingMoods(),
+      ]).then((_) => _scheduleSilentReload()),
+    );
   }
 
   Future<void> loadMoods({bool silent = false}) async {
+    if (_isLoadInProgress) {
+      _pendingSilentReload = _pendingSilentReload || silent;
+      return;
+    }
+
+    _isLoadInProgress = true;
     if (!silent) {
       _moodsState = const Loading();
-      if (!_disposed) notifyListeners();
+      _notifySafely();
     }
 
     try {
-      final data = await _mRepository.getAllMoods();
+      final data = await _repository.getAllMoods();
       _moodsState = Success(data);
       _markDerivedDirty();
     } catch (e) {
       _moodsState = const Error('Failed to load history');
     }
 
-    if (!_disposed) notifyListeners();
+    _isLoadInProgress = false;
+    _notifySafely();
+
+    if (_pendingSilentReload) {
+      _pendingSilentReload = false;
+      unawaited(loadMoods(silent: true));
+    }
+  }
+
+  void _scheduleSilentReload() {
+    if (_silentReloadScheduled) return;
+    _silentReloadScheduled = true;
+    scheduleMicrotask(() async {
+      _silentReloadScheduled = false;
+      await loadMoods(silent: true);
+    });
+  }
+
+  Future<String?> _getLastActiveUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastActiveUserIdKey);
+  }
+
+  Future<void> _setLastActiveUserId(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastActiveUserIdKey, userId);
   }
 
   Future<void> addMood(MoodEntry entry) async {
-    await _mRepository.addMood(entry);
+    await _repository.addMood(entry);
     await loadMoods(silent: true);
   }
 
   Future<void> updateMood(MoodEntry entry) async {
-    await _mRepository.updateMood(entry);
+    await _repository.updateMood(entry);
     await loadMoods(silent: true);
   }
 
   Future<void> deleteMood(int id) async {
-    await _mRepository.deleteMood(id);
+    await _repository.deleteMood(id);
     await loadMoods(silent: true);
   }
 
@@ -93,9 +164,7 @@ class MoodViewModel with ChangeNotifier {
       if (_searchQuery == next) return;
       _searchQuery = next;
       _markDerivedDirty();
-      if (!_disposed) {
-        notifyListeners();
-      }
+      _notifySafely();
     });
   }
 
@@ -103,27 +172,21 @@ class MoodViewModel with ChangeNotifier {
     if (_selectedCategory == category) return;
     _selectedCategory = category;
     _markDerivedDirty();
-    if (!_disposed) {
-      notifyListeners();
-    }
+    _notifySafely();
   }
 
   void setDateRange(DateTimeRange? range) {
     if (_selectedDateRange == range) return;
     _selectedDateRange = range;
     _markDerivedDirty();
-    if (!_disposed) {
-      notifyListeners();
-    }
+    _notifySafely();
   }
 
   void setSortOption(MoodSortOption option) {
     if (_sortOption == option) return;
     _sortOption = option;
     _markDerivedDirty();
-    if (!_disposed) {
-      notifyListeners();
-    }
+    _notifySafely();
   }
 
   void clearFilters() {
@@ -132,9 +195,7 @@ class MoodViewModel with ChangeNotifier {
     _selectedDateRange = null;
     _sortOption = MoodSortOption.newestFirst;
     _markDerivedDirty();
-    if (!_disposed) {
-      notifyListeners();
-    }
+    _notifySafely();
   }
 
   List<String> get availableCategories {
@@ -163,7 +224,9 @@ class MoodViewModel with ChangeNotifier {
   int get entriesThisWeek {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    return _allEntries.where((entry) => entry.dateTime.isAfter(weekStart)).length;
+    return _allEntries
+        .where((entry) => entry.dateTime.isAfter(weekStart))
+        .length;
   }
 
   bool get hasTodayEntry {
@@ -187,15 +250,13 @@ class MoodViewModel with ChangeNotifier {
             entry.dateTime.day,
           ),
         )
-        .toSet()
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+        .toSet();
 
     var streak = 0;
     var cursor = DateTime.now();
     cursor = DateTime(cursor.year, cursor.month, cursor.day);
 
-    while (uniqueDays.any((day) => day == cursor)) {
+    while (uniqueDays.contains(cursor)) {
       streak++;
       cursor = cursor.subtract(const Duration(days: 1));
     }
@@ -216,8 +277,20 @@ class MoodViewModel with ChangeNotifier {
   double get moodBalance {
     if (_allEntries.isEmpty) return 0.5;
 
-    const positive = {'\u{1F929}', '\u{1F60A}', '\u{1F973}', '\u{1F970}', '\u{1F60E}'};
-    const negative = {'\u{1F622}', '\u{1F621}', '\u{1F631}', '\u{1F630}', '\u{1F922}'};
+    const positive = {
+      '\u{1F929}',
+      '\u{1F60A}',
+      '\u{1F973}',
+      '\u{1F970}',
+      '\u{1F60E}',
+    };
+    const negative = {
+      '\u{1F622}',
+      '\u{1F621}',
+      '\u{1F631}',
+      '\u{1F630}',
+      '\u{1F922}',
+    };
 
     var score = 0.0;
     for (final entry in _allEntries) {
@@ -234,14 +307,16 @@ class MoodViewModel with ChangeNotifier {
 
   int? get randomEntryId {
     if (_allEntries.isEmpty) return null;
-    final randomIndex = Random().nextInt(_allEntries.length);
+    final randomIndex = _random.nextInt(_allEntries.length);
     return _allEntries[randomIndex].id;
   }
 
   bool _matchesFilters(MoodEntry entry) {
-    final categoryMatch = _selectedCategory == null || entry.category == _selectedCategory;
+    final categoryMatch =
+        _selectedCategory == null || entry.category == _selectedCategory;
 
-    final dateMatch = _selectedDateRange == null ||
+    final dateMatch =
+        _selectedDateRange == null ||
         (entry.dateTime.isAfter(
               _selectedDateRange!.start.subtract(const Duration(seconds: 1)),
             ) &&
@@ -249,7 +324,8 @@ class MoodViewModel with ChangeNotifier {
               _selectedDateRange!.end.add(const Duration(days: 1)),
             ));
 
-    final queryMatch = _searchQuery.isEmpty || _matchesQuery(entry, _searchQuery);
+    final queryMatch =
+        _searchQuery.isEmpty || _matchesQuery(entry, _searchQuery);
 
     return categoryMatch && dateMatch && queryMatch;
   }
@@ -270,7 +346,6 @@ class MoodViewModel with ChangeNotifier {
       for (final token in field.split(RegExp(r'\s+'))) {
         if (token.isEmpty) continue;
 
-        // Нечеткий поиск через string_similarity
         final score = token.similarityTo(query);
         if (score > bestScore) {
           bestScore = score;
@@ -315,7 +390,7 @@ class MoodViewModel with ChangeNotifier {
     _availableCategoriesCache = uniqueCategories.toList()..sort();
 
     final filtered = data.where(_matchesFilters).toList();
-    
+
     filtered.sort((a, b) {
       switch (_sortOption) {
         case MoodSortOption.newestFirst:
@@ -328,15 +403,21 @@ class MoodViewModel with ChangeNotifier {
           return b.reason.toLowerCase().compareTo(a.reason.toLowerCase());
       }
     });
-    
+
     _visibleMoodsCache = filtered;
     _isDerivedDirty = false;
+  }
+
+  void _notifySafely() {
+    if (_disposed) return;
+    notifyListeners();
   }
 
   @override
   void dispose() {
     _disposed = true;
     _searchDebounce?.cancel();
+    _remoteSubscription?.cancel();
     super.dispose();
   }
 }

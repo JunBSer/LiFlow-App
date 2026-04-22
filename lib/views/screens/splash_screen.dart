@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'home_screen.dart';
+import 'session_gate.dart';
 import '../../core/localization/localization.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -48,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen>
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, _, _) => const HomeScreen(),
+            pageBuilder: (_, _, _) => const SessionGate(),
             transitionsBuilder: (_, a, _, c) =>
                 FadeTransition(opacity: a, child: c),
             transitionDuration: const Duration(milliseconds: 800),

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -55,7 +56,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   late String _selectedEmoji;
   late String _selectedCategory;
   String? _imagePath;
+  String? _locationTag;
   bool _isPickingImage = false;
+  bool _isResolvingLocation = false;
   bool _isSaving = false;
 
   @override
@@ -165,16 +168,43 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isPickingImage ? null : _pickImageFromGallery,
+                    icon: _isPickingImage
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.photo_library_outlined),
+                    label: Text(context.loc('select_image')),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _isPickingImage ? null : _pickImageFromCamera,
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: Text(context.loc('take_photo')),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: _isPickingImage ? null : _pickImage,
-                icon: _isPickingImage
+                onPressed: _isResolvingLocation ? null : _attachCurrentLocation,
+                icon: _isResolvingLocation
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.image_outlined),
-                label: Text(context.loc('select_image')),
+                    : const Icon(Icons.my_location_outlined),
+                label: Text(
+                  _locationTag == null
+                      ? context.loc('attach_location')
+                      : '${context.loc('location')}: $_locationTag',
+                ),
               ),
               if (_imagePath != null) ...[
                 const SizedBox(height: 12),
@@ -251,17 +281,22 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImageFromGallery() async {
+    await _pickImage(ImageSource.gallery);
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    await _pickImage(ImageSource.camera);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
     if (_isPickingImage) return;
     setState(() {
       _isPickingImage = true;
     });
 
     try {
-      final image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
+      final image = await _picker.pickImage(source: source, imageQuality: 80);
       if (image == null || !mounted) return;
 
       setState(() {
@@ -283,6 +318,55 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     }
   }
 
+  Future<void> _attachCurrentLocation() async {
+    if (_isResolvingLocation) return;
+    final locationServicesDisabled = context.loc('location_services_disabled');
+    final locationPermissionDenied = context.loc('location_permission_denied');
+    setState(() {
+      _isResolvingLocation = true;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception(locationServicesDisabled);
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception(locationPermissionDenied);
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _locationTag =
+            '${position.latitude.toStringAsFixed(4)} ${position.longitude.toStringAsFixed(4)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResolvingLocation = false;
+        });
+      }
+    }
+  }
+
   Future<void> _save() async {
     if (_isSaving || _reasonController.text.trim().isEmpty) return;
     setState(() {
@@ -295,6 +379,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
           .toList();
+      if (_locationTag != null) {
+        keywords.add(_locationTag!);
+      }
 
       final entry = MoodEntry(
         id: widget.entryToEdit?.id,

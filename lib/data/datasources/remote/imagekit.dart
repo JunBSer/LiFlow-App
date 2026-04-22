@@ -17,20 +17,21 @@ class ImageKitDataSource {
       }
 
       final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
-    
+
       final String basicAuth = base64Encode(utf8.encode('$_privateKey:'));
       request.headers['Authorization'] = 'Basic $basicAuth';
 
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
-      
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
+
       request.fields['fileName'] = fileName;
-      request.fields['folder'] = '/mood_tracker'; 
+      request.fields['folder'] = '/mood_tracker';
       request.fields['useUniqueFileName'] = 'true';
 
       request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
       final response = await request.send();
-      
+
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
         final data = jsonDecode(responseData);
@@ -39,7 +40,9 @@ class ImageKitDataSource {
         return remoteUrl;
       } else {
         final errorResponse = await response.stream.bytesToString();
-        developer.log('ImageKit: Upload failed (${response.statusCode}): $errorResponse');
+        developer.log(
+          'ImageKit: Upload failed (${response.statusCode}): $errorResponse',
+        );
         return null;
       }
     } catch (e) {

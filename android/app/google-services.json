@@ -13,7 +13,12 @@
           "package_name": "com.example.liflow"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1029006610708-65djheh37i6609v19t2meujvpm7b4dka.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAdI7MuE0hsoaSdQC1q76aa5-SwxV4D6Og"
@@ -21,7 +26,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1029006610708-65djheh37i6609v19t2meujvpm7b4dka.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1029006610708-jmr9a3pict905q5hsfe6435v78b19g37.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.liflow"
+              }
+            }
+          ]
         }
       }
     }

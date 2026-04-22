@@ -118,4 +118,104 @@ class DBHelper {
     final db = await database;
     return await db.delete('moods', where: 'id = ?', whereArgs: [id]);
   }
+
+  Future<void> clearAllEntries() async {
+    final db = await database;
+    await db.delete('moods');
+  }
+
+  Future<void> upsertRemoteEntry(
+    MoodEntry entry, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await database;
+    final remoteId = entry.remoteId;
+    if (remoteId == null || remoteId.isEmpty) return;
+
+    final byRemoteId = await db.query(
+      'moods',
+      where: 'remoteId = ?',
+      whereArgs: [remoteId],
+      limit: 1,
+    );
+
+    if (byRemoteId.isNotEmpty) {
+      final localId = byRemoteId.first['id'] as int;
+      await db.update(
+        'moods',
+        entry.copyWith(id: localId).toMap(),
+        where: 'id = ?',
+        whereArgs: [localId],
+      );
+      return;
+    }
+
+    // If remote event arrives before local row receives remoteId,
+    // bind by local id first to avoid creating a duplicate row.
+    final localIdFromRemote = entry.id;
+    if (localIdFromRemote != null) {
+      final byLocalId = await db.query(
+        'moods',
+        where: 'id = ?',
+        whereArgs: [localIdFromRemote],
+        limit: 1,
+      );
+      if (byLocalId.isNotEmpty) {
+        await db.update(
+          'moods',
+          entry.copyWith(id: localIdFromRemote).toMap(),
+          where: 'id = ?',
+          whereArgs: [localIdFromRemote],
+        );
+        return;
+      }
+    }
+
+    await db.insert(
+      'moods',
+      entry.toMap()..remove('id'),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> upsertAllRemoteEntries(List<MoodEntry> entries) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final entry in entries) {
+        await upsertRemoteEntry(entry, executor: txn);
+      }
+    });
+  }
+
+  Future<void> bindRemoteIdToLocalId({
+    required int localId,
+    required String remoteId,
+    String? imageUrl,
+  }) async {
+    final db = await database;
+    await db.update(
+      'moods',
+      {
+        'remoteId': remoteId,
+        'imageUrl': imageUrl,
+      },
+      where: 'id = ?',
+      whereArgs: [localId],
+    );
+  }
+
+  Future<void> deleteRemoteEntriesNotIn(Set<String> remoteIds) async {
+    final db = await database;
+    if (remoteIds.isEmpty) {
+      await db.delete('moods', where: 'remoteId IS NOT NULL');
+      return;
+    }
+
+    final placeholders = List.filled(remoteIds.length, '?').join(',');
+    await db.delete(
+      'moods',
+      where: 'remoteId IS NOT NULL AND remoteId NOT IN ($placeholders)',
+      whereArgs: remoteIds.toList(),
+    );
+  }
 }

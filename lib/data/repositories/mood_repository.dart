@@ -43,37 +43,42 @@ class MoodRepository {
 
   Future<void> syncFromRemote() async {
     try {
-     
       final remoteEntries = await _remote.fetchAllMoods();
       if (remoteEntries.isEmpty) return;
-
-    
-      final localEntries = await _dbHelper.getEntries();
-      final localRemoteIds = localEntries.map((e) => e.remoteId).toSet();
-
-      bool hasNewData = false;
-
-      for (final remoteEntry in remoteEntries) {
-     
-        if (!localRemoteIds.contains(remoteEntry.remoteId)) {
-         
-          await _dbHelper.insertEntry(remoteEntry);
-          hasNewData = true;
-        }
-      }
-
-      if (hasNewData) {
-        onSyncCompleted?.call();
-      }
+      await _dbHelper.upsertAllRemoteEntries(remoteEntries);
+      onSyncCompleted?.call();
     } catch (e) {
       developer.log('Error during initial sync: $e');
     }
   }
 
+  Stream<List<MoodEntry>> watchRemoteMoods() {
+    return _remote.watchAllMoods();
+  }
+
+  Future<void> applyRemoteSnapshot(List<MoodEntry> remoteEntries) async {
+    final remoteIds = <String>{};
+    for (final entry in remoteEntries) {
+      final remoteId = entry.remoteId;
+      if (remoteId == null || remoteId.isEmpty) continue;
+      remoteIds.add(remoteId);
+      await _dbHelper.upsertRemoteEntry(entry);
+    }
+
+    await _dbHelper.deleteRemoteEntriesNotIn(remoteIds);
+    onSyncCompleted?.call();
+  }
+
+  Future<void> clearLocalData() async {
+    await _dbHelper.clearAllEntries();
+  }
+
   Future<void> syncPendingMoods() async {
     try {
       final allEntries = await _dbHelper.getEntries();
-      final unsynced = allEntries.where((e) => e.remoteId == null || e.remoteId!.isEmpty);
+      final unsynced = allEntries.where(
+        (e) => e.remoteId == null || e.remoteId!.isEmpty,
+      );
 
       for (final entry in unsynced) {
         if (entry.id != null) {
@@ -88,16 +93,21 @@ class MoodRepository {
   Future<void> _syncCreateToRemote(MoodEntry localEntry, int localId) async {
     try {
       String? cloudUrl = localEntry.imageUrl;
-      
-      if (cloudUrl != null && cloudUrl.isNotEmpty && !cloudUrl.startsWith('http')) {
+
+      if (cloudUrl != null &&
+          cloudUrl.isNotEmpty &&
+          !cloudUrl.startsWith('http')) {
         cloudUrl = await _imageKit.uploadImage(cloudUrl);
       }
 
-      final result = await _remote.saveMood(localEntry, cloudImageUrl: cloudUrl);
-      
+      final result = await _remote.saveMood(
+        localEntry,
+        cloudImageUrl: cloudUrl,
+      );
+
       if (result != null) {
-        await _dbHelper.updateSyncedFields(
-          id: localId,
+        await _dbHelper.bindRemoteIdToLocalId(
+          localId: localId,
           remoteId: result.remoteId,
           imageUrl: cloudUrl ?? result.imageUrl,
         );
@@ -111,8 +121,10 @@ class MoodRepository {
   Future<void> _syncUpdateToRemote(MoodEntry entry) async {
     try {
       String? cloudUrl = entry.imageUrl;
-      
-      if (cloudUrl != null && cloudUrl.isNotEmpty && !cloudUrl.startsWith('http')) {
+
+      if (cloudUrl != null &&
+          cloudUrl.isNotEmpty &&
+          !cloudUrl.startsWith('http')) {
         cloudUrl = await _imageKit.uploadImage(cloudUrl);
       }
 
@@ -127,7 +139,10 @@ class MoodRepository {
           onSyncCompleted?.call();
         }
       } else {
-        final syncedImageUrl = await _remote.updateMood(entry, cloudImageUrl: cloudUrl);
+        final syncedImageUrl = await _remote.updateMood(
+          entry,
+          cloudImageUrl: cloudUrl,
+        );
         if (entry.id != null) {
           await _dbHelper.updateSyncedFields(
             id: entry.id!,
@@ -141,7 +156,10 @@ class MoodRepository {
     }
   }
 
-  Future<void> _syncDeleteFromRemote(String remoteId, {String? imageUrl}) async {
+  Future<void> _syncDeleteFromRemote(
+    String remoteId, {
+    String? imageUrl,
+  }) async {
     try {
       await _remote.deleteMood(remoteId, imageUrl: imageUrl);
     } catch (e) {

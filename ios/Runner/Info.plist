@@ -30,6 +30,10 @@
 	<string>LiFlow needs access to your photos to attach mood images.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>LiFlow may save edited images for mood entries.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LiFlow needs camera access to attach mood photos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LiFlow uses your location to enrich mood entries.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

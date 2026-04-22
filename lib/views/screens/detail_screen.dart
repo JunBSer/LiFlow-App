@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/localization/localization.dart';
 import '../../viewmodels/mood_view_model.dart';
@@ -35,6 +36,19 @@ class DetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () async {
+              final text =
+                  '''
+${entry.emoji} ${context.loc('mood_entry_share_title')}
+${DateFormat('dd.MM.yyyy HH:mm').format(entry.dateTime)}
+${context.loc('category')}: ${entry.category}
+${context.loc('reason')}: ${entry.reason}
+''';
+              await SharePlus.instance.share(ShareParams(text: text.trim()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
@@ -145,8 +159,26 @@ class DetailScreen extends StatelessWidget {
                   height: 220,
                   width: double.infinity,
                   child: entry.imageUrl!.startsWith('http')
-                      ? Image.network(entry.imageUrl!, fit: BoxFit.cover)
-                      : Image.file(File(entry.imageUrl!), fit: BoxFit.cover),
+                      ? Image.network(
+                          entry.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const ColoredBox(
+                            color: Colors.black12,
+                            child: Center(
+                              child: Icon(Icons.broken_image_outlined),
+                            ),
+                          ),
+                        )
+                      : Image.file(
+                          File(entry.imageUrl!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const ColoredBox(
+                            color: Colors.black12,
+                            child: Center(
+                              child: Icon(Icons.broken_image_outlined),
+                            ),
+                          ),
+                        ),
                 ),
               ),
             ],

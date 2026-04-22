@@ -10,14 +10,61 @@ class SettingsViewModel with ChangeNotifier {
   bool _dailyReminderEnabled = false;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 20, minute: 0);
   bool _disposed = false;
+  String? _currentUserId;
 
   bool get isDarkMode => _isDarkMode;
   String get langCode => _langCode;
   bool get dailyReminderEnabled => _dailyReminderEnabled;
   TimeOfDay get reminderTime => _reminderTime;
 
-  SettingsViewModel() {
-    _loadSettings();
+  SettingsViewModel._({
+    required bool isDarkMode,
+    required String langCode,
+    required bool dailyReminderEnabled,
+    required TimeOfDay reminderTime,
+    String? currentUserId,
+  }) : _isDarkMode = isDarkMode,
+       _langCode = langCode,
+       _dailyReminderEnabled = dailyReminderEnabled,
+       _reminderTime = reminderTime,
+       _currentUserId = currentUserId;
+
+  factory SettingsViewModel() {
+    PrefsHelper.setUserScope(null);
+    final vm = SettingsViewModel._(
+      isDarkMode: false,
+      langCode: 'ru',
+      dailyReminderEnabled: false,
+      reminderTime: const TimeOfDay(hour: 20, minute: 0),
+    );
+    unawaited(vm._loadSettings());
+    return vm;
+  }
+
+  static Future<SettingsViewModel> bootstrapForUser(String? userId) async {
+    PrefsHelper.setUserScope(userId);
+    final isDarkMode = await PrefsHelper.getTheme();
+    final langCode = await PrefsHelper.getLanguage();
+    final dailyReminderEnabled = await PrefsHelper.getReminderEnabled();
+    final (hour, minute) = await PrefsHelper.getReminderTime();
+
+    final vm = SettingsViewModel._(
+      isDarkMode: isDarkMode,
+      langCode: langCode,
+      dailyReminderEnabled: dailyReminderEnabled,
+      reminderTime: TimeOfDay(hour: hour, minute: minute),
+      currentUserId: userId,
+    );
+
+    await vm._applyReminderScheduleIfEnabled();
+    return vm;
+  }
+
+  Future<void> setCurrentUser(String? userId) async {
+    if (_currentUserId == userId) return;
+    _currentUserId = userId;
+    PrefsHelper.setUserScope(userId);
+    await _loadSettings();
   }
 
   Future<void> _loadSettings() async {
@@ -27,20 +74,21 @@ class SettingsViewModel with ChangeNotifier {
     final (hour, minute) = await PrefsHelper.getReminderTime();
     _reminderTime = TimeOfDay(hour: hour, minute: minute);
 
-    if (_dailyReminderEnabled) {
-      try {
-        await NotificationService.instance.scheduleDailyReminder(
-          hour: _reminderTime.hour,
-          minute: _reminderTime.minute,
-        );
-      } catch (_) {
-        _dailyReminderEnabled = false;
-      }
-    }
+    await _applyReminderScheduleIfEnabled();
 
     if (!_disposed) {
       notifyListeners();
     }
+  }
+
+  Future<void> _applyReminderScheduleIfEnabled() async {
+    if (!_dailyReminderEnabled) return;
+    try {
+      await NotificationService.instance.scheduleDailyReminder(
+        hour: _reminderTime.hour,
+        minute: _reminderTime.minute,
+      );
+    } catch (_) {}
   }
 
   void toggleTheme(bool value) {

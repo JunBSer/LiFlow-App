@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/localization/localization.dart';
+import '../../core/services/auth_service.dart';
 import '../../viewmodels/settings_view_model.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -132,6 +133,24 @@ class SettingsScreen extends StatelessWidget {
                         : null,
                     child: Text(settings.reminderTime.format(context)),
                   ),
+                ),
+                const Divider(height: 1, indent: 20, endIndent: 20),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  leading: const Icon(Icons.logout),
+                  title: Text(
+                    context.loc('logout'),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  onTap: () async {
+                    await AuthService.instance.signOut();
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
                 ),
               ],
             ),

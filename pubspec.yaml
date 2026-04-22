@@ -47,6 +47,10 @@ dependencies:
   firebase_storage: ^13.2.0
   firebase_database: ^12.3.0
   string_similarity: ^2.2.0
+  firebase_auth: ^6.4.0
+  geolocator: ^14.0.1
+  share_plus: ^13.1.0
+  firebase_app_check: ^0.4.3
 
 dev_dependencies:
   flutter_test:
