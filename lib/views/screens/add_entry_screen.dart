@@ -168,28 +168,32 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _isPickingImage ? null : _pickImageFromGallery,
-                    icon: _isPickingImage
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.photo_library_outlined),
-                    label: Text(context.loc('select_image')),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _isPickingImage ? null : _pickImageFromCamera,
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: Text(context.loc('take_photo')),
-                  ),
-                ],
+              OutlinedButton.icon(
+                onPressed: _isPickingImage ? null : _showImageSourcePicker,
+                icon: _isPickingImage
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_a_photo_outlined),
+                label: Text(context.loc('select_image')),
               ),
+              if (_imagePath != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _isSaving
+                        ? null
+                        : () => setState(() {
+                            _imagePath = null;
+                          }),
+                    icon: const Icon(Icons.delete_outline),
+                    label: Text(context.loc('delete')),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: _isResolvingLocation ? null : _attachCurrentLocation,
@@ -281,12 +285,35 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  Future<void> _pickImageFromGallery() async {
-    await _pickImage(ImageSource.gallery);
-  }
+  Future<void> _showImageSourcePicker() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: Text(context.loc('take_photo')),
+                onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(context.loc('select_image')),
+                onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
 
-  Future<void> _pickImageFromCamera() async {
-    await _pickImage(ImageSource.camera);
+    if (source == null || !mounted) return;
+    await _pickImage(source);
   }
 
   Future<void> _pickImage(ImageSource source) async {
